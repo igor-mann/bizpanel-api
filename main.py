@@ -45,6 +45,8 @@ class PushData(BaseModel):
 # ─── Auth endpoints ───
 @app.post("/api/v1/auth/register")
 def register(data: RegisterSchema, db: Session = Depends(get_db)):
+    if len(data.password) < 8 or len(data.password) > 64:
+        raise HTTPException(status_code=400, detail="Пароль должен быть от 8 до 64 символов")
     if db.query(User).filter(User.email == data.email).first():
         raise HTTPException(status_code=400, detail="Email уже используется")
     user = User(
