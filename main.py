@@ -17,7 +17,7 @@ with engine.connect() as conn:
     inspector = inspect(engine)
     columns = [c['name'] for c in inspector.get_columns('users')]
     if 'api_key' not in columns:
-        conn.execute(text("ALTER TABLE users ADD COLUMN api_key VARCHAR UNIQUE"))
+        conn.execute(text("ALTER TABLE users ADD COLUMN api_key VARCHAR"))
         conn.commit()
 
 app = FastAPI()
