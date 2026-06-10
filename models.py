@@ -24,4 +24,5 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
     api_key = Column(String, unique=True, nullable=True)
+    telegram_chat_id = Column(String, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
