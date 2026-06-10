@@ -19,6 +19,9 @@ with engine.connect() as conn:
     if 'api_key' not in columns:
         conn.execute(text("ALTER TABLE users ADD COLUMN api_key VARCHAR"))
         conn.commit()
+    if 'telegram_chat_id' not in columns:
+        conn.execute(text("ALTER TABLE users ADD COLUMN telegram_chat_id VARCHAR"))
+        conn.commit()
 
 app = FastAPI()
 
@@ -125,3 +128,45 @@ def get_metrics(org_id: str, db: Session = Depends(get_db), current_user: User =
         .order_by(MetricData.collected_at.desc())\
         .all()
     return rows
+
+import os
+import httpx
+
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+
+async def send_telegram(chat_id: str, text: str):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    async with httpx.AsyncClient() as client:
+        await client.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"})
+
+@app.post("/api/v1/telegram/connect")
+def telegram_connect(chat_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    current_user.telegram_chat_id = chat_id
+    db.commit()
+    return {"status": "ok"}
+
+@app.post("/api/v1/telegram/test")
+async def telegram_test(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.telegram_chat_id:
+        raise HTTPException(status_code=400, detail="Telegram не подключён")
+    await send_telegram(current_user.telegram_chat_id, "✅ BizPanel подключён успешно!")
+    return {"status": "ok"}
+
+@app.post("/api/v1/telegram/send_summary")
+async def send_summary(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not current_user.telegram_chat_id:
+        raise HTTPException(status_code=400, detail="Telegram не подключён")
+    rows = db.query(MetricData).filter(MetricData.org_id == current_user.id).order_by(MetricData.collected_at.desc()).all()
+    latest = {}
+    for r in rows:
+        if r.metric_key not in latest:
+            latest[r.metric_key] = r
+    NAMES = {"revenue": "Выручка", "profit": "Прибыль", "receivables": "Дебиторка", "payables": "Кредиторка", "cash": "Деньги", "tax_liability": "Налоги"}
+    lines = ["📊 <b>Сводка BizPanel</b>"]
+    for key, name in NAMES.items():
+        if key in latest:
+            v = latest[key].metric_value
+            fmt = f"{v/1e9:.1f} млрд" if v >= 1e9 else f"{v/1e6:.1f} млн"
+            lines.append(f"{name}: <b>{fmt} сум</b>")
+    await send_telegram(current_user.telegram_chat_id, "\n".join(lines))
+    return {"status": "ok"}
