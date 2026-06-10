@@ -170,3 +170,33 @@ async def send_summary(db: Session = Depends(get_db), current_user: User = Depen
             lines.append(f"{name}: <b>{fmt} сум</b>")
     await send_telegram(current_user.telegram_chat_id, "\n".join(lines))
     return {"status": "ok"}
+
+# ─── Admin endpoints ───
+ADMIN_SECRET = os.environ.get("ADMIN_SECRET", "change_me_in_production")
+
+def verify_admin(x_admin_key: str = Header(None)):
+    if not x_admin_key or not secrets.compare_digest(x_admin_key, ADMIN_SECRET):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+@app.get("/api/v1/admin/users")
+def admin_users(db: Session = Depends(get_db), _=Depends(verify_admin)):
+    users = db.query(User).all()
+    return [{"id": u.id, "email": u.email, "full_name": u.full_name, "api_key": u.api_key} for u in users]
+
+@app.post("/api/v1/admin/reset-password")
+def admin_reset_password(email: str, new_password: str, db: Session = Depends(get_db), _=Depends(verify_admin)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    user.password_hash = hash_password(new_password)
+    db.commit()
+    return {"status": "ok", "email": email}
+
+@app.delete("/api/v1/admin/delete-user")
+def admin_delete_user(email: str, db: Session = Depends(get_db), _=Depends(verify_admin)):
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    db.delete(user)
+    db.commit()
+    return {"status": "deleted", "email": email}
