@@ -79,7 +79,7 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
 
 @app.get("/api/v1/auth/me")
 def me(current_user: User = Depends(get_current_user)):
-    return {"email": current_user.email, "full_name": current_user.full_name}
+    return {"id": current_user.id, "email": current_user.email, "full_name": current_user.full_name}
 
 # ─── API Key endpoints ───
 @app.post("/api/v1/auth/apikey")
