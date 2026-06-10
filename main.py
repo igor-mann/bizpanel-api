@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from database import engine, get_db, Base
@@ -8,8 +8,14 @@ from pydantic import BaseModel
 from datetime import date
 from typing import List, Optional
 import uuid
+import secrets
 
 Base.metadata.create_all(bind=engine)
+
+from sqlalchemy import text
+with engine.connect() as conn:
+    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS api_key VARCHAR UNIQUE"))
+    conn.commit()
 
 app = FastAPI()
 
@@ -72,9 +78,30 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
 def me(current_user: User = Depends(get_current_user)):
     return {"email": current_user.email, "full_name": current_user.full_name}
 
+# ─── API Key endpoints ───
+@app.post("/api/v1/auth/apikey")
+def generate_api_key(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    api_key = "bp_" + secrets.token_hex(32)
+    current_user.api_key = api_key
+    db.commit()
+    return {"api_key": api_key}
+
+@app.get("/api/v1/auth/apikey")
+def get_api_key(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return {"api_key": current_user.api_key}
+
+# ─── Вспомогательная функция ───
+def get_user_by_api_key(x_api_key: str = Header(None), db: Session = Depends(get_db)):
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="X-API-Key required")
+    user = db.query(User).filter(User.api_key == x_api_key).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return user
+
 # ─── Метрики endpoints ───
 @app.post("/api/v1/agent/push")
-def push_metrics(data: PushData, db: Session = Depends(get_db)):
+def push_metrics(data: PushData, db: Session = Depends(get_db), _user: User = Depends(get_user_by_api_key)):
     for m in data.metrics:
         record = MetricData(
             org_id=data.org_id,
