@@ -12,10 +12,13 @@ import secrets
 
 Base.metadata.create_all(bind=engine)
 
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 with engine.connect() as conn:
-    conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS api_key VARCHAR UNIQUE"))
-    conn.commit()
+    inspector = inspect(engine)
+    columns = [c['name'] for c in inspector.get_columns('users')]
+    if 'api_key' not in columns:
+        conn.execute(text("ALTER TABLE users ADD COLUMN api_key VARCHAR UNIQUE"))
+        conn.commit()
 
 app = FastAPI()
 
