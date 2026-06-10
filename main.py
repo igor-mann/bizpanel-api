@@ -121,6 +121,10 @@ def push_metrics(data: PushData, db: Session = Depends(get_db), _user: User = De
     db.commit()
     return {"status": "ok", "count": len(data.metrics)}
 
+@app.get("/api/v1/agent/ping")
+def agent_ping(_user: User = Depends(get_user_by_api_key)):
+    return {"status": "ok"}
+
 @app.get("/api/v1/metrics")
 def get_metrics(org_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     rows = db.query(MetricData)\
