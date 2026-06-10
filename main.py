@@ -67,7 +67,7 @@ def register(data: RegisterSchema, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     token = create_token(user.id)
-    return {"access_token": token, "token_type": "bearer", "user": {"email": user.email, "full_name": user.full_name}}
+    return {"access_token": token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "full_name": user.full_name}}
 
 @app.post("/api/v1/auth/login")
 def login(data: LoginSchema, db: Session = Depends(get_db)):
@@ -75,7 +75,7 @@ def login(data: LoginSchema, db: Session = Depends(get_db)):
     if not user or not verify_password(data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Неверный email или пароль")
     token = create_token(user.id)
-    return {"access_token": token, "token_type": "bearer", "user": {"email": user.email, "full_name": user.full_name}}
+    return {"access_token": token, "token_type": "bearer", "user": {"id": user.id, "email": user.email, "full_name": user.full_name}}
 
 @app.get("/api/v1/auth/me")
 def me(current_user: User = Depends(get_current_user)):
@@ -107,7 +107,7 @@ def get_user_by_api_key(x_api_key: str = Header(None), db: Session = Depends(get
 def push_metrics(data: PushData, db: Session = Depends(get_db), _user: User = Depends(get_user_by_api_key)):
     for m in data.metrics:
         record = MetricData(
-            org_id=data.org_id,
+            org_id=_user.id,
             metric_key=m.key,
             metric_value=m.value,
             period_start=m.period_start,
