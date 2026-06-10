@@ -23,4 +23,5 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     full_name = Column(String, nullable=False)
+    api_key = Column(String, unique=True, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
